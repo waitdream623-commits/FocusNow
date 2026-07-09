@@ -1,6 +1,5 @@
 #include <raylib.h>
-#include "ball.h"
-
+#include "type.h"
 int main() 
 {
     const Color darkGreen = {20, 160, 133, 255};
@@ -8,18 +7,17 @@ int main()
     constexpr int screenWidth = 800;
     constexpr int screenHeight = 600;
     
-    Ball ball;
-    
-    InitWindow(screenWidth, screenHeight, "My first RAYLIB program!");
+    InitWindow(screenWidth, screenHeight, "FcousNow");
     SetTargetFPS(60);
-    
+    type type;
     while (!WindowShouldClose())
     {
-        ball.Update();
         
         BeginDrawing();
+
             ClearBackground(darkGreen);
-            ball.Draw();
+            type.Newletters();//生成新字母
+            type.Draw();
         EndDrawing();
     }
     
