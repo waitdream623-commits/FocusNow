@@ -5,8 +5,8 @@ int main()
 {
     const Color darkGreen = {20, 160, 133, 255};
     
-    constexpr int screenWidth = 800;
-    constexpr int screenHeight = 600;
+    constexpr int screenWidth = 1280;
+    constexpr int screenHeight = 960;
     
     InitWindow(screenWidth, screenHeight, "FcousNow");
     Font myFont = LoadFont("assets/font/monogram.ttf");
@@ -22,6 +22,7 @@ int main()
             type.IsPreesedCorret();//判定加生成新字母
             type.Draw();
             mouse.ShowTrail();
+            
         EndDrawing();
     }
     
