@@ -1,6 +1,7 @@
 #include "type.h"
 #include <random>
 #include <time.h>
+#include <cctype>
 type::type()
 {
     srand(time(0));//种下种子
@@ -9,7 +10,7 @@ type::type()
     {
         GetRandomLetter(i);
     }
-    startTime=GetTime();//本局开始计时
+    startTime=GetTime();//本局开始计时 
 
 }
 type::type(Font f)// 函数重载
@@ -78,101 +79,81 @@ bool type::IsRightPlace()
 }
 void type::IsPreesedCorret()
 {
-    // // 一局时间
-    // double now = GetTime();
-    // if (now - startTime >= SESSION_DURATION)
-    // {
-    //     keyEvents.clear();// 先清空，开始新的一局
-    //     startTime = now;
-    // }
-    //不用按鼠标
+    // 一局 60 秒：时间到 → 结束本局（第③步：结算时汇总字母统计，保存以后再做）
+    double now = GetTime();
+    if (now - startTime >= SESSION_DURATION)
+    {
+        ComputeLetterStats(letterStats);// 从 keyEvents 汇总每个字母统计
+        TraceLog(LOG_INFO, "本局结束：keyEvents=%d, A 正确率=%.1f%%",
+                 (int)keyEvents.size(), letterStats[0].accuracy * 100.0);
+        keyEvents.clear();// 先清空，开始新的一局
+        startTime = now;
+    }
+
     char a;//获取输入按键
     while((a=GetCharPressed())&&a!=0)
     {
-        keyEvents.push_back({letters[0].letter, a, 0.0, a == letters[0].letter && IsRightPlace()}); // 记录按键事件
+        // 唯一真相源：只记录事件，统计在需要时从 keyEvents 计算
+        keyEvents.push_back({letters[0].letter, a, 0.0, a == letters[0].letter && IsRightPlace()});
 
         if(a==letters[0].letter&&IsRightPlace())//比较第一个字母
         {
-            letterStats[letters[0].letter - 'a'].correctCount++; // 更新按对次数
-            mouseStats.correct++; // 更新鼠标位置正确次数
-            mouseStats.total++;// 鼠标判断总次数
             for(int i=0;i<MAX_LETTER_LENGTH-1;i++)
             {
                 letters[i]=letters[i+1];//将后续移动到前面
-                
             }
             GetRandomLetter(MAX_LETTER_LENGTH-1);//新生成一个
-
-        }
-        else 
-        {
-            mouseStats.total++;
-            mouseStats.errors++;// 鼠标位置错误次数
         }
     }
-    //     // 只有鼠标左键按下才判定
-    // if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-    //     return;
-
-    // char a = letters[0].letter;
-    // bool correct = IsRightPlace();//先判定位置，避免消除后 letters[0] 改变
-
-    // mouseStats.total++;                          // 鼠标判断总次数
-    // letterStats[a - 'a'].totalCount++;    // 更新总出现次数
-
-    // if (correct)//鼠标按下且位置正确才消除
-    // {
-    //     mouseStats.correct++;                          // 鼠标位置正确次数
-    //     letterStats[a - 'a'].correctCount++;    // 更新按对次数
-
-    //     // 消除当前字母：后续前移，末尾生成新字母
-    //     for (int i = 0; i < MAX_LETTER_LENGTH - 1; i++)
-    //     {
-    //         letters[i] = letters[i + 1];
-    //     }
-    //     GetRandomLetter(MAX_LETTER_LENGTH - 1);
-    // }
-    // else
-    // {
-    //     mouseStats.errors++;// 鼠标位置错误次数
-    // }
-
-    // keyEvents.push_back({letters[0].letter, a, 0.0, correct}); // 记录本次操作
-
-    TraceLog(LOG_INFO, "event count: %d", (int)keyEvents.size());
-    TraceLog(LOG_INFO, "totalCount: %d", letterStats[letters[0].letter - 'a'].totalCount);
-    TraceLog(LOG_INFO, "correct count: %d", letterStats[letters[0].letter - 'a'].correctCount);
-    TraceLog(LOG_INFO, "mouse total: %d", mouseStats.total);
-    TraceLog(LOG_INFO, "mouse correct: %d", mouseStats.correct);
-    TraceLog(LOG_INFO, "mouse errors: %d", mouseStats.errors);
- 
 }
+
 double type::GetWPM()
 {
     double duration = GetTime() - startTime;//已经进行的秒数
     if (duration <= 0) return 0.0;//避免除零
     int correct = 0;
-    for (int i = 0; i < 26; i++)
+    for (const KeyEvent& e : keyEvents)
     {
-        correct += letterStats[i].correctCount;
+        if (e.correct) correct++;
     }
     //WPM = (正确字数 / 5) / 分钟数
     return correct / 5.0 / (duration / 60.0);
 }
+
+void type::ComputeLetterStats(LetterData out[26]) const
+{
+    for (int i = 0; i < 26; i++) out[i] = LetterData{};// 清零
+    for (const KeyEvent& e : keyEvents)
+    {
+        char expected = (char)std::tolower((unsigned char)e.expected);
+        if (expected < 'a' || expected > 'z') continue;
+        int idx = expected - 'a';
+        out[idx].totalCount++;               // 该字母出现次数
+        if (e.correct) out[idx].correctCount++;// 按对次数
+        out[idx].totalTime += e.reactionTime;  // 反应时间（现在全是0）
+    }
+    // 补全推导字段：错误次数 / 正确率 / 平均反应时间
+    for (int i = 0; i < 26; i++)
+    {
+        LetterData& d = out[i];
+        d.errorCount = d.totalCount - d.correctCount;
+        d.accuracy = (d.totalCount > 0) ? (double)d.correctCount / d.totalCount : 0.0;
+        d.avgReactionTime = (d.totalCount > 0) ? d.totalTime / d.totalCount : 0.0;
+    }
+}
+
 void type::Draw()
 {
     //画顺序
-      for (int i = 0; i < MAX_LETTER_LENGTH; i++)
+    for (int i = 0; i < MAX_LETTER_LENGTH; i++)
     {
         char letter[2] = {letters[i].letter, '\0'};          // 单个字符 + 结束符
         DrawTextEx(font, letter, {300 + 40.0f * i, (float)(GetScreenHeight()-70)}, 50, 1, GREEN);//画顺序
         DrawCircle(letters[i].x,letters[i].y,letters[i].radius,DARKBLUE);//画圆
         DrawTextEx(font,letter,{letters[i].x-MeasureTextEx(font,letter,letters[i].radius * 1.2f,1).x/2,
              letters[i].y-MeasureTextEx(font,letter,letters[i].radius * 1.2f,1).y/2}, letters[i].radius * 1.2f , 1 , WHITE);//画字母
-
     }
 
     //显示WPM
     DrawTextEx(font, TextFormat("WPM: %.1f", GetWPM()), {20.0f, 20.0f}, 40, 1, WHITE);
-    
 }

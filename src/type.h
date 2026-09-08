@@ -18,6 +18,7 @@ class type{
     void Draw();
     void IsPreesedCorret();
     double GetWPM();//计算打字速度(WPM)
+    void ComputeLetterStats(LetterData out[26]) const;//从 keyEvents 汇总每个字母统计
 
 
     private:
@@ -28,7 +29,7 @@ class type{
     bool IsRightPlace();//检测鼠标位置
     bool IsFits();//检查
     std::vector<KeyEvent> keyEvents;//记录每次按键
+    LetterData letterStats[26];//从 keyEvents 汇总出的每个字母统计（第③步结算时填）
     double startTime = 0.0;//本局开始时刻（秒）
-    LetterData letterStats[26];//统计每个字母的情况
-    MouseStats mouseStats;//统计鼠标操作情况
+    MouseStats mouseStats;//统计鼠标操作情况（第④步再填数据）
 };

@@ -6,11 +6,14 @@ struct KeyEvent//记录每一次按键
     double reactionTime;// 反应时间，先填 0，第⑧步再真正算
     bool correct;       // 这次按对了吗
 };
-struct LetterData//记录每一个字母的统计数据
+struct LetterData//记录每一个字母的统计数据（= KeyStats）
 {
     int correctCount = 0;   // 按对次数
     int totalCount = 0;     // 总共出现次数
+    int errorCount = 0;     // 按错次数（= total - correct）
     double totalTime = 0.0; // 总共反应时间
+    double accuracy = 0.0;      // 正确率（0~1）
+    double avgReactionTime = 0.0;// 平均反应时间（秒）
 };
 struct MouseStats
 {
