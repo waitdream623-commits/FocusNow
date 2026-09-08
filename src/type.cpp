@@ -1,7 +1,9 @@
 #include "type.h"
+#include "storage.h"
 #include <random>
 #include <time.h>
 #include <cctype>
+
 type::type()
 {
     srand(time(0));//种下种子
@@ -77,6 +79,13 @@ bool type::IsRightPlace()
     return false;
 
 }
+void type::StartSession()
+{
+    keyEvents.clear();
+    mouseStats = MouseStats{};
+    startTime = GetTime();
+}
+
 void type::IsPreesedCorret()
 {
     // 一局 60 秒：时间到 → 结束本局（第③步：结算时汇总字母统计，保存以后再做）
@@ -84,19 +93,44 @@ void type::IsPreesedCorret()
     if (now - startTime >= SESSION_DURATION)
     {
         ComputeLetterStats(letterStats);// 从 keyEvents 汇总每个字母统计
-        TraceLog(LOG_INFO, "本局结束：keyEvents=%d, A 正确率=%.1f%%",
-                 (int)keyEvents.size(), letterStats[0].accuracy * 100.0);
+
+        // 第⑤步：组装本次训练 SessionData
+        SessionData s;
+        s.timestamp = (long long)time(nullptr);
+        s.duration = now - startTime;
+        s.wpm = GetWPM();                 // 必须在清空 keyEvents 之前算
+        s.mouse = mouseStats;
+        for (int i = 0; i < 26; i++) s.letters[i] = letterStats[i];
+
+        // 第⑥步：追加到用户数据，并累计 A-Z / 鼠标统计
+        storage::AddSession(userData, s);
+
+        double mouseAcc = (mouseStats.total > 0) ? (double)mouseStats.correct / mouseStats.total * 100.0 : 0.0;
+        TraceLog(LOG_INFO, "Session ended: keyEvents=%d, WPM=%.1f, A accuracy=%.1f%%, mouse accuracy=%.1f%%, sessions=%d",
+                 (int)keyEvents.size(), s.wpm, letterStats[0].accuracy * 100.0, mouseAcc, (int)userData.sessions.size());
+
+        // 第⑦步：每局结束后存档
+        TraceLog(LOG_INFO, "Save %s", SaveUserData(storage::kDefaultSavePath) ? "OK" : "failed");
         keyEvents.clear();// 先清空，开始新的一局
+        mouseStats = MouseStats{};// 清空本局鼠标统计
         startTime = now;
     }
 
     char a;//获取输入按键
     while((a=GetCharPressed())&&a!=0)
     {
-        // 唯一真相源：只记录事件，统计在需要时从 keyEvents 计算
-        keyEvents.push_back({letters[0].letter, a, 0.0, a == letters[0].letter && IsRightPlace()});
+        bool mouseOnTarget = IsRightPlace();//本帧鼠标是否在目标圆内
+        bool keyCorrect = (a == letters[0].letter);//按键字母是否正确
 
-        if(a==letters[0].letter&&IsRightPlace())//比较第一个字母
+        // 第④步：每次按键都是一次"鼠标注意力"判断，统计鼠标位置对错
+        mouseStats.total++;
+        if (mouseOnTarget) mouseStats.correct++;
+        else mouseStats.errors++;
+
+        // 唯一真相源：只记录事件，统计在需要时从 keyEvents 计算
+        keyEvents.push_back({letters[0].letter, a, 0.0, keyCorrect && mouseOnTarget});
+
+        if(keyCorrect && mouseOnTarget)//比较第一个字母
         {
             for(int i=0;i<MAX_LETTER_LENGTH-1;i++)
             {
@@ -133,13 +167,17 @@ void type::ComputeLetterStats(LetterData out[26]) const
         out[idx].totalTime += e.reactionTime;  // 反应时间（现在全是0）
     }
     // 补全推导字段：错误次数 / 正确率 / 平均反应时间
-    for (int i = 0; i < 26; i++)
-    {
-        LetterData& d = out[i];
-        d.errorCount = d.totalCount - d.correctCount;
-        d.accuracy = (d.totalCount > 0) ? (double)d.correctCount / d.totalCount : 0.0;
-        d.avgReactionTime = (d.totalCount > 0) ? d.totalTime / d.totalCount : 0.0;
-    }
+    for (int i = 0; i < 26; i++) storage::RecomputeLetterDerived(out[i]);
+}
+
+bool type::SaveUserData(const std::string& path) const
+{
+    return storage::Save(userData, path);
+}
+
+bool type::LoadUserData(const std::string& path)
+{
+    return storage::Load(userData, path);
 }
 
 void type::Draw()

@@ -17,8 +17,11 @@ class type{
     type(Font f);// 函数重载
     void Draw();
     void IsPreesedCorret();
+    void StartSession();//第⑧步：开始新的一局（重置计时与统计）
     double GetWPM();//计算打字速度(WPM)
     void ComputeLetterStats(LetterData out[26]) const;//从 keyEvents 汇总每个字母统计
+    bool SaveUserData(const std::string& path) const;//第⑦步：存档
+    bool LoadUserData(const std::string& path);//第⑦步：读档
 
 
     private:
@@ -32,4 +35,5 @@ class type{
     LetterData letterStats[26];//从 keyEvents 汇总出的每个字母统计（第③步结算时填）
     double startTime = 0.0;//本局开始时刻（秒）
     MouseStats mouseStats;//统计鼠标操作情况（第④步再填数据）
+    UserData userData;//当前用户全部数据（第⑥步）
 };
